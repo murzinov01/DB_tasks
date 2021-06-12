@@ -17,3 +17,5 @@
 1) Выполнены все критерии к БД
 
 2) Реализован GUI cо всеми 10ю обязательными действиями
+## Demonstration
+https://drive.google.com/file/d/1JFhccSmtJK7mhHHamFYki6tuSqgGLcHn/view?usp=sharing - ссылка на гугл диск с видео демонстрацией работы всего функционала.
