@@ -150,7 +150,6 @@ class StudentDB:
 
     def insert_student(self, info: tuple):
         """
-
         :param info: - tuple (name, course, group_name, teacher_name)
         """
         if info[1] < 1 or info[1] > 5:
@@ -176,7 +175,6 @@ class StudentDB:
 
     def insert_teacher(self, info: tuple) -> bool:
         """
-
         :param info: - tuple (name, subject)
         """
         val = (info[0], info[1])
@@ -193,7 +191,6 @@ class StudentDB:
 
     def insert_group(self, info: tuple) -> bool:
         """
-
         :param info: - tuple (name)
         """
         val = (info[0], 0)
@@ -281,7 +278,6 @@ class StudentDB:
 
     def delete_student(self, student_name=None, student_id=None):
         """
-
         :param student_name:
         :return:
         """
@@ -316,7 +312,6 @@ class StudentDB:
 
     def update_student_name(self, info: tuple):
         """
-
         :param info: tuple (student_id, new_name)
         """
         if not self.check_student(info[0]):
@@ -336,7 +331,6 @@ class StudentDB:
 
     def update_teacher_subject(self, info):
         """
-
         :param info: tuple (teacher_id, new_subject)
         :return:
         """
@@ -367,7 +361,6 @@ class StudentDB:
 
     def find_students_by_group_name(self, group_name):
         """
-
         :param group_name:
         :return:
         """
