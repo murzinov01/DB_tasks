@@ -117,6 +117,30 @@ class StudentDB:
                 ''', val
             )
 
+    def insert_student_trigger(self):
+        self.db_cursor.execute(
+            '''
+            CREATE TRIGGER student_insert
+            AFTER INSERT ON Students
+            BEGIN
+                 UPDATE StudentGroups 
+                 SET StudentGroups.students_num = (StudentGroups.students_num + 1)
+                 WHERE NEW.group_id = StudentGroups.id 
+            '''
+        )
+
+    def delete_student_trigger(self):
+        self.db_cursor.execute(
+            '''
+            CREATE TRIGGER student_insert
+            AFTER DELETE ON Students
+            BEGIN
+                 UPDATE StudentGroups 
+                 SET StudentGroups.students_num = (StudentGroups.students_num - 1)
+                 WHERE NEW.group_id = StudentGroups.id 
+            '''
+        )
+
     def insert_student(self, info: tuple):
         """
 
@@ -311,10 +335,10 @@ class StudentDB:
             WHERE id = ?
             ''', (info[1], info[0])
         )
-        st_id = self.get_student_id(info[0])
-        if student_id == -1:
-            return False
-        return True
+        st_id = self.find_teachers_by_subject(info[1])
+        if st_id != -1:
+            return True
+        return False
 
     def find_teachers_by_subject(self, subject_name):
 
@@ -340,6 +364,10 @@ class StudentDB:
             WHERE StudentGroups.name = ?
             ''', (group_name, )
         )
+        if len(student_data) == 0:
+            return -1
+        return student_data
+
 
     def show_db(self):
         print("Hello")
