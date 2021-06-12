@@ -138,7 +138,7 @@ class StudentDB:
             VALUES ((SELECT MAX(id) from Students) + 1, ?, ?, ?, ?)
             ''', val
         )
-        if self.get_student_id(info[0]):
+        if self.get_student_id(info[0]) != -1:
             return True
         return False
 
@@ -154,7 +154,7 @@ class StudentDB:
             VALUES ((SELECT MAX(id) from Teachers) + 1, ?, ?)
             ''', val
         )
-        if self.get_teacher_id(info[0]):
+        if self.get_teacher_id(info[0]) != -1:
             return True
         return False
 
@@ -170,7 +170,7 @@ class StudentDB:
             VALUES ((SELECT MAX(id) from StudentGroups) + 1, ?, ?)
             ''', val
         )
-        if self.get_group_id(info[0]):
+        if self.get_group_id(info[0]) != -1:
             return True
         return False
 
@@ -204,6 +204,26 @@ class StudentDB:
             return -1
         return student_id[0][0]
 
+    def check_student(self, student_id) -> int:
+        student_id = self.db_cursor.execute(
+            '''
+            SELECT * FROM Students WHERE id = ?
+            ''', (student_id,)
+        ).fetchall()
+        if len(student_id) == 0:
+            return False
+        return True
+
+    def check_teacher(self, teacher_id) -> int:
+        teacher_id = self.db_cursor.execute(
+            '''
+            SELECT * FROM Teacher WHERE id = ?
+            ''', (teacher_id,)
+        ).fetchall()
+        if len(teacher_id) == 0:
+            return False
+        return True
+
     def _get_all_students(self):
         return self.db_cursor.execute(
                 '''
@@ -224,6 +244,102 @@ class StudentDB:
                 SELECT * FROM StudentGroups
                 '''
             ).fetchall()
+
+    def delete_student(self, student_name=None, student_id=None):
+        """
+
+        :param student_name:
+        :return:
+        """
+        if student_name is not None:
+            student_id = self.get_student_id(student_name)
+            if student_id == -1:
+                return -1
+            self.db_cursor.execute(
+                '''
+                DELETE FROM Students
+                WHERE name = ?
+                ''', (student_name,)
+            )
+            if self.get_student_id(student_name) == -1:
+                return True
+            return False
+        elif student_id is not None:
+            if self.check_student(student_id):
+                self.db_cursor.execute(
+                    '''
+                    DELETE FROM Students
+                    WHERE id = ?
+                    ''', (student_id,)
+                )
+                if self.check_student(student_id):
+                    return False
+                return True
+            return -1
+
+    def update_student_name(self, info: tuple):
+        """
+
+        :param info: tuple (student_id, new_name)
+        """
+        if not self.check_student(info[0]):
+            return -1
+        self.db_cursor.execute(
+            '''
+            UPDATE Students
+            SET name = ?
+            WHERE id = ?
+            ''', (info[1], info[0])
+        )
+        student_id = self.get_student_id(info[0])
+        if student_id == -1:
+            return False
+        return True
+
+    def update_teacher_subject(self, info):
+        """
+
+        :param info: tuple (teacher_id, new_subject)
+        :return:
+        """
+        if not self.check_teacher(info[0]):
+            return -1
+        self.db_cursor.execute(
+            '''
+            UPDATE Teachers
+            SET subject = ?
+            WHERE id = ?
+            ''', (info[1], info[0])
+        )
+        st_id = self.get_student_id(info[0])
+        if student_id == -1:
+            return False
+        return True
+
+    def find_teachers_by_subject(self, subject_name):
+
+        teachers_data = self.db_cursor.execute(
+            '''
+            SELECT * FROM Teacher WHERE subject = ?
+            ''', (subject_name,)
+        ).fetchall()
+        if len(teachers_data) == 0:
+            return -1
+        return teachers_data
+
+    def find_students_by_group_name(self, group_name):
+        """
+
+        :param group_name:
+        :return:
+        """
+        student_data = self.db_cursor.execute(
+            '''
+            SELECT Students.name, StudentGroups.name 
+            FROM Students, StudentGroups
+            WHERE StudentGroups.name = ?
+            ''', (group_name, )
+        )
 
     def show_db(self):
         print("Hello")
