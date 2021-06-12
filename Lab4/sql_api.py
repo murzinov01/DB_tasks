@@ -20,7 +20,7 @@ def print_tb(table):
     """
     This function is to print table
     """
-    print(tb(table, tablefmt="fancy_grid"))
+    return str(tb(table, tablefmt="pipe"))
 
 
 class StudentDB:
@@ -71,7 +71,7 @@ class StudentDB:
             '''
             CREATE TABLE IF NOT EXISTS StudentGroups
             (id INTEGER PRIMARY KEY,
-             group_name TEXT,
+             name TEXT,
              students_num INTEGER NOT NULL
             )
             '''
@@ -80,11 +80,14 @@ class StudentDB:
         self.db_cursor.execute(
             '''
             CREATE UNIQUE INDEX idx_groups
-            ON StudentGroups (group_name) 
+            ON StudentGroups (name) 
             '''
         )
+        self.insert_student_trigger()
+        self.delete_student_trigger()
         if self.template == 'default_db':
             self.__insert_default_data()
+        self.save()
 
     def save(self) -> int:
         """
@@ -124,35 +127,39 @@ class StudentDB:
             AFTER INSERT ON Students
             BEGIN
                  UPDATE StudentGroups 
-                 SET StudentGroups.students_num = (StudentGroups.students_num + 1)
-                 WHERE NEW.group_id = StudentGroups.id 
+                 SET students_num = (students_num + 1)
+                 WHERE id = NEW.group_id;
+            END;
             '''
         )
+        self.save()
 
     def delete_student_trigger(self):
         self.db_cursor.execute(
             '''
-            CREATE TRIGGER student_insert
+            CREATE TRIGGER student_delete
             AFTER DELETE ON Students
             BEGIN
                  UPDATE StudentGroups 
-                 SET StudentGroups.students_num = (StudentGroups.students_num - 1)
-                 WHERE NEW.group_id = StudentGroups.id 
+                 SET students_num = (students_num - 1)
+                 WHERE id = OLD.group_id;
+            END;
             '''
         )
+        self.save()
 
     def insert_student(self, info: tuple):
         """
 
         :param info: - tuple (name, course, group_name, teacher_name)
         """
-        if info[0] < 1 or info[0] > 5:
+        if info[1] < 1 or info[1] > 5:
             return -3
 
         group_id = self.get_group_id(info[2])
         if group_id == -1:
             return -1
-        teacher_id = self.get_group_id(info[3])
+        teacher_id = self.get_teacher_id(info[3])
         if teacher_id == -1:
             return -2
         val = (str(info[0]), int(info[1]), group_id, teacher_id)
@@ -162,6 +169,7 @@ class StudentDB:
             VALUES ((SELECT MAX(id) from Students) + 1, ?, ?, ?, ?)
             ''', val
         )
+        self.save()
         if self.get_student_id(info[0]) != -1:
             return True
         return False
@@ -178,6 +186,7 @@ class StudentDB:
             VALUES ((SELECT MAX(id) from Teachers) + 1, ?, ?)
             ''', val
         )
+        self.save()
         if self.get_teacher_id(info[0]) != -1:
             return True
         return False
@@ -194,6 +203,7 @@ class StudentDB:
             VALUES ((SELECT MAX(id) from StudentGroups) + 1, ?, ?)
             ''', val
         )
+        self.save()
         if self.get_group_id(info[0]) != -1:
             return True
         return False
@@ -285,6 +295,7 @@ class StudentDB:
                 WHERE name = ?
                 ''', (student_name,)
             )
+            self.save()
             if self.get_student_id(student_name) == -1:
                 return True
             return False
@@ -296,6 +307,8 @@ class StudentDB:
                     WHERE id = ?
                     ''', (student_id,)
                 )
+                self.delete_student_trigger()
+                self.save()
                 if self.check_student(student_id):
                     return False
                 return True
@@ -316,6 +329,7 @@ class StudentDB:
             ''', (info[1], info[0])
         )
         student_id = self.get_student_id(info[0])
+        self.save()
         if student_id == -1:
             return False
         return True
@@ -336,15 +350,15 @@ class StudentDB:
             ''', (info[1], info[0])
         )
         st_id = self.find_teachers_by_subject(info[1])
+        self.save()
         if st_id != -1:
             return True
         return False
 
     def find_teachers_by_subject(self, subject_name):
-
         teachers_data = self.db_cursor.execute(
             '''
-            SELECT * FROM Teacher WHERE subject = ?
+            SELECT * FROM Teachers WHERE subject = ?
             ''', (subject_name,)
         ).fetchall()
         if len(teachers_data) == 0:
@@ -363,17 +377,59 @@ class StudentDB:
             FROM Students, StudentGroups
             WHERE StudentGroups.name = ?
             ''', (group_name, )
-        )
+        ).fetchall()
         if len(student_data) == 0:
             return -1
         return student_data
 
+    def show_db(self) -> str:
+        result = "DataBase:\n"
+        tables = self.db_cursor.execute(
+            '''
+            SELECT name FROM sqlite_master WHERE type = "table"
+            '''
+        ).fetchall()
+        if len(tables) == 0:
+            return result
+        if len(tables) == 3:
+            result += "Students\n" + print_tb(self._get_all_students()) + "\n"
+        result += "Teachers\n" + print_tb(self._get_all_teachers()) + "\n"
+        result += "Groups\n" + print_tb(self._get_all_groups()) + "\n"
+        return result
 
-    def show_db(self):
-        print("Hello")
-        print(self._get_all_students())
-        print_tb(self._get_all_students())
-        print_tb(self._get_all_teachers())
-        print_tb(self._get_all_groups())
+    def delete_data_base(self):
+        self.db_connection.close()
+        os.remove(self.name)
 
+    def delete_student_table(self):
+        self.db_cursor.execute(
+            '''
+            DROP TABLE Students;
+            '''
+        )
+        self.save()
 
+    def delete_all_tables(self):
+        self.db_cursor.execute(
+            '''
+            DROP TABLE Students;
+            '''
+        )
+        self.db_cursor.execute(
+            '''
+            DROP TABLE Teachers;
+            '''
+        )
+        self.db_cursor.execute(
+            '''
+            DROP TABLE StudentGroups;
+            '''
+        )
+        self.save()
+
+    def __del__(self):
+        try:
+            self.save()
+        except Exception as e:
+            pass
+        self.db_connection.close()

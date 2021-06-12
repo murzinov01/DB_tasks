@@ -1,31 +1,37 @@
 import telebot
 from telebot import types
-from sql_api import StudentDB, check_db
+from sql_api import StudentDB, check_db, print_tb
 
 
 bot = telebot.TeleBot('1845923104:AAFKJhZWXCm3xPZPF6Sp6ehl7U-pvyMLgBc')
 data_base = None
+action = ""
+table_to_clear = ""
+insert_to = ""
 user_id = ""
+find_who = ""
+delete_by = ""
+delete_who = ""
+waiting_insert_text = False
+waiting_find_text = False
+waiting_delete_text = False
 
 
-def create_data_base(message):
+def create_keyboard(info: dict):
     keyboard = types.InlineKeyboardMarkup()
-    key_empty_db = types.InlineKeyboardButton(text='Empty database', callback_data='empty_db')
-    keyboard.add(key_empty_db)
-    key_default_db = types.InlineKeyboardButton(text='Default database', callback_data='default_db')
-    keyboard.add(key_default_db)
-    question = 'Выберете какую базу данных вы хотите создать?' \
-               ' Пустую или заполненную некоторыми значениями по умолчанию.'
-    bot.send_message(message.from_user.id, text=question, reply_markup=keyboard)
+    for text, call_back in info.items():
+        keyboard.add(types.InlineKeyboardButton(text=text, callback_data=call_back))
+    return keyboard
 
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
+    global data_base, action, table_to_clear, waiting_insert_text, insert_to, find_who, waiting_find_text, \
+        waiting_delete_text, delete_by, delete_who
     if call.data in ("empty_db", "default_db"):
         if check_db(user_id + ".sqlite"):
             bot.send_message(call.message.chat.id, 'Ошибка! У вас уже создана база данных!\n')
             return
-        global data_base
         try:
             if call.data == "empty_db":
                 data_base = StudentDB(name=user_id + ".sqlite", template=call.data)
@@ -35,41 +41,194 @@ def callback_handler(call):
                 bot.send_message(call.message.chat.id, 'База данных по умолчанию успешно создана!')
         except Exception as e:
             bot.send_message(call.message.chat.id, f'Ошибка при создании базы данных\n{e}')
+    elif call.data in ("yes", "no"):
+        if data_base is not None and call.data == "yes":
+            if action == "delete":
+                try:
+                    data_base.delete_data_base()
+                    bot.send_message(call.message.chat.id, "База данных успешно удалена!")
+                except Exception as e:
+                    bot.send_message(call.message.chat.id, f"Ошибка при удалении базы данных!\n{e}")
+            elif action == "clear":
+                try:
+                    if table_to_clear == "students":
+                        data_base.delete_student_table()  # CLEAR STUDENTS TABLE
+                    if table_to_clear == "teacher":
+                        pass  # CLEAR TEACHERS TABLE
+                    if table_to_clear == "groups":
+                        pass  # CLEAR GROUPS TABLE
+                    if table_to_clear == 'all':
+                        data_base.delete_all_tables()
+                    bot.send_message(call.message.chat.id, "Очистка таблицы прошла успешно!")
+                except Exception as e:
+                    bot.send_message(call.message.chat.id, f"Ошибка во время очистки таблицы({e}")
+        elif call.data == "no":
+            bot.send_message(call.message.chat.id, "База данных оставлена без изменений.")
+        action = ""
+        table_to_clear = ""
+    elif call.data in ('students', 'teachers', 'groups', 'all'):
+        table_to_clear = call.data
+        question = 'Вы точно хотите очистить выбранную таблицу?'
+        keyboard = create_keyboard({"Да": "yes",
+                                    "Нет": "no"})
+        bot.send_message(call.message.chat.id, text=question, reply_markup=keyboard)
+    elif call.data in ("student", "teacher", "group"):
+        if call.data == "student":
+            bot.send_message(call.message.chat.id, "Введите данные в следующем формате"
+                                                   " (name, course, group_name, teacher_name)")
+        elif call.data == "teacher":
+            bot.send_message(call.message.chat.id, "Введите данные в следующем формате"
+                                                   " (name, subject)")
+        elif call.data == "group":
+            bot.send_message(call.message.chat.id, "Введите данные в следующем формате"
+                                                   " (group_name)")
+        waiting_insert_text = True
+        insert_to = call.data
+    elif call.data in ("target_student", "target_teacher"):
+        if call.data == "target_student":
+            bot.send_message(call.message.chat.id, "Пока что я умею искать студентов только по имени группы!"
+                                                   " Пожалуйста, введи имя группы")
+        if call.data == "target_teacher":
+            bot.send_message(call.message.chat.id, "Пока что я умею искать учителей только по предметам!"
+                                                   " Пожалуйста, введи название предмета")
+        find_who = call.data
+        waiting_find_text = True
+    elif call.data in ("delete_student", "delete_teacher", "delete_group"):
+        delete_who = call.data
+        if call.data == "delete_student":
+            keyboard = create_keyboard({"По id": "by_id",
+                                        "По имени": 'by_name'})
+            question = "Как будем удалять?"
+            bot.send_message(call.message.chat.id, text=question, reply_markup=keyboard)
+    elif call.data in ("by_id", "by_name"):
+        if call.data == "by_id":
+            bot.send_message(call.message.chat.id, "Введи id!")
+        elif call.data == "by_name":
+            bot.send_message(call.message.chat.id, "Введи имя!")
+        waiting_delete_text = True
+        delete_by = call.data
 
 
-def delete_data_base():
-    pass
+def create_data_base(message):
+    keyboard = create_keyboard({"Empty database": "empty_db",
+                                "Default database": "default_db"})
+    question = 'Выберете какую базу данных вы хотите создать?' \
+               ' Пустую или заполненную некоторыми значениями по умолчанию.'
+    bot.send_message(message.from_user.id, text=question, reply_markup=keyboard)
 
 
-def show_data_base():
+def delete_data_base(message):
+    global action
+    action = "delete"
+    question = 'Вы точно хотите удалить базу данных?'
+    keyboard = create_keyboard({"Да": "yes",
+                                "Нет": "no"})
+    bot.send_message(message.from_user.id, text=question, reply_markup=keyboard)
+
+
+def show_data_base(message):
     global data_base
-    if data_base is not None:
-        data_base.show_db()
+    try:
+        if data_base is not None:
+            bot.send_message(message.chat.id, data_base.show_db())
+        else:
+            bot.send_message(message.chat.id, "Вышей базы данных не существует. Прежде чем посмотреть, создайте её!")
+    except Exception as e:
+        bot.send_message(message.chat.id, f"Ошибка. Вышей базы данных не существует."
+                                          f" Прежде чем посмотреть, создайте её!{e}")
 
 
-def clear_data_base():
-    pass
+def clear_data_base(message):
+    global action
+    action = "clear"
+    keyboard_clear = create_keyboard({"Студенты": "students",
+                                      "Учителя": "teachers",
+                                      "Группы": "groups",
+                                      "Все": "all"})
+    question = 'Какую таблицу вы хотите почистить?'
+    bot.send_message(message.from_user.id, text=question, reply_markup=keyboard_clear)
 
 
-def insert_new_entry():
-    pass
+def insert_new_entry(message):
+    keyboard = create_keyboard({"Студента": "student",
+                                "Учителя": "teacher",
+                                "Группу": "group"})
+    question = "Кого будем добавлять в базу данных?"
+    bot.send_message(message.from_user.id, text=question, reply_markup=keyboard)
 
 
-def find_entry():
-    pass
+# студенты - по имени группы, учителей по предметам
+def find_entry(message):
+    keyboard = create_keyboard({"Студента": "target_student",
+                                "Учителя": "target_teacher"})
+    question = "Кого будем искать?"
+    bot.send_message(message.from_user.id, text=question, reply_markup=keyboard)
 
 
-def delete_entry():
-    pass
+# студенты - по имени и по айди
+def delete_entry(message):
+    keyboard = create_keyboard({"Студента": "delete_student",
+                                "Учителя": "delete_teacher",
+                                "Группу": "delete_group"})
+    question = "Кого будем удалять? Пока что я умею удалять только студента!"
+    bot.send_message(message.from_user.id, text=question, reply_markup=keyboard)
 
 
-def update_entry():
+# студентам имя, учителям предмат
+def update_entry(message):
     pass
 
 
 @bot.message_handler(content_types=['text'])
 def get_text_messages(message):
-    global user_id, data_base
+    global user_id, data_base, waiting_insert_text, insert_to, waiting_find_text, find_who, waiting_delete_text, \
+        delete_by, delete_who
+    if waiting_insert_text:
+        waiting_insert_text = False
+        try:
+            params = message.text.split(" ")
+            if insert_to == "student":
+                params[1] = int(params[1])
+                data_base.insert_student(params)  # STUDENT INSERT
+            elif insert_to == "teacher":
+                data_base.insert_teacher(params)  # TEACHER INSERT
+            elif insert_to == "group":
+                data_base.insert_group(params)   # GROUP INSERT
+            bot.send_message(message.from_user.id, "Запись успешно добавлена!")
+        except Exception as e:
+            bot.send_message(message.from_user.id, f"Неправильный формат данных или ошибка вставки({e}")
+        insert_to = ""
+        return
+    if waiting_find_text:
+        waiting_find_text = False
+        try:
+            params = message.text.split(" ")
+            result = ""
+            if find_who == "target_student":
+                result = data_base.find_students_by_group_name(params[0])  # FIND STUDENT
+            if find_who == "target_teacher":
+                result = data_base.find_teachers_by_subject(params[0])  # FIND TEACHER
+            bot.send_message(message.from_user.id, "Вот, что я нешёл:\n" + print_tb(result))
+        except Exception as e:
+            bot.send_message(message.from_user.id, f"Неправильный формат данных или ошибка поиска({e}")
+        find_who = ""
+        return
+    if waiting_delete_text:
+        waiting_delete_text = False
+        try:
+            params = message.text.split(" ")
+            if delete_who == "delete_student":
+                # DELETE STUDENT
+                if delete_by == "by_id":
+                    data_base.delete_student(student_id=int(params[0]))  # DELETE STUDENT BY ID
+                elif delete_by == "by_name":
+                    data_base.delete_student(student_name=params[0])  # DELETE STUDENT BY NAME
+            bot.send_message(message.from_user.id, "Запись успешно удалена!")
+        except Exception as e:
+            bot.send_message(message.from_user.id, f"Неправильный формат данных или ошибка во время удаления({e}")
+        delete_by = ""
+        delete_who = ""
+        return
     if user_id == "":
         user_id = str(message.from_user.id)
         if check_db(user_id + ".sqlite"):
@@ -95,19 +254,19 @@ def get_text_messages(message):
     elif message.text == "/create_data_base":
         create_data_base(message)
     elif message.text == "/delete_data_base":
-        delete_data_base()
+        delete_data_base(message)
     elif message.text == "/show_data_base":
-        show_data_base()
+        show_data_base(message)
     elif message.text == "/clear_data_base":
-        clear_data_base()
+        clear_data_base(message)
     elif message.text == "/insert_new_entry":
-        insert_new_entry()
+        insert_new_entry(message)
     elif message.text == "/update_entry":
-        update_entry()
+        update_entry(message)
     elif message.text == "/find_entry":
-        find_entry()
+        find_entry(message)
     elif message.text == "/delete_entry":
-        delete_entry()
+        delete_entry(message)
     else:
         bot.send_message(message.from_user.id, "Я тебя не понимаю. Напиши /help.")
 
