@@ -3,15 +3,17 @@ from tabulate import tabulate as tb
 import os
 
 
-def check_db(name):
+def check_db(name: str) -> bool:
     """
     This function is to check db existence
     """
     directory = os.getcwd()
     if os.path.exists(directory + "/" + name):
         print("Loading Student DB")
+        return True
     else:
         print("Creating Student DB")
+        return False
 
 
 def print_tb(table):
@@ -25,16 +27,19 @@ class StudentDB:
     """
     Class for work with Student DB
     """
-    def __init__(self, name="students_db.sqlite"):
-        check_db(name)
+    def __init__(self, name="students_db.sqlite", template='default_db'):
+        self.name = name
+        self.template = template
+        self.created = check_db(name)
         self.__def_groups = ['19SE-1', '19SE-2', '19SE-3']
         self.__def_teachers = ['Bychkov', 'Semin', 'Leikin']
         self.__def_subjects = ['Algorithms', 'DB', 'Java']
-        self.__def_teachers = ['']
         self.db_connection = sqlite3.connect(name, check_same_thread=False)
         self.db_cursor = self.db_connection.cursor()
+        if not self.created:
+            self.crete_tables()
 
-    def __crete_tables(self):
+    def crete_tables(self):
         """
         This function is to create main tables of the Student DB
         """
@@ -66,8 +71,8 @@ class StudentDB:
             '''
             CREATE TABLE IF NOT EXISTS StudentGroups
             (id INTEGER PRIMARY KEY,
-             students_num INTEGER NOT NULL,
-             group_name TEXT
+             group_name TEXT,
+             students_num INTEGER NOT NULL
             )
             '''
         )
@@ -78,6 +83,8 @@ class StudentDB:
             ON StudentGroups (group_name) 
             '''
         )
+        if self.template == 'default_db':
+            self.__insert_default_data()
 
     def save(self) -> int:
         """
@@ -196,3 +203,33 @@ class StudentDB:
         if len(student_id) == 0:
             return -1
         return student_id[0][0]
+
+    def _get_all_students(self):
+        return self.db_cursor.execute(
+                '''
+                SELECT * FROM Students
+                '''
+            ).fetchall()
+
+    def _get_all_teachers(self):
+        return self.db_cursor.execute(
+                '''
+                SELECT * FROM Teachers
+                '''
+            ).fetchall()
+
+    def _get_all_groups(self):
+        return self.db_cursor.execute(
+                '''
+                SELECT * FROM StudentGroups
+                '''
+            ).fetchall()
+
+    def show_db(self):
+        print("Hello")
+        print(self._get_all_students())
+        print_tb(self._get_all_students())
+        print_tb(self._get_all_teachers())
+        print_tb(self._get_all_groups())
+
+

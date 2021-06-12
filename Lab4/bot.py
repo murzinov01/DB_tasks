@@ -1,8 +1,11 @@
 import telebot
 from telebot import types
+from sql_api import StudentDB, check_db
 
 
 bot = telebot.TeleBot('1845923104:AAFKJhZWXCm3xPZPF6Sp6ehl7U-pvyMLgBc')
+data_base = None
+user_id = ""
 
 
 def create_data_base(message):
@@ -18,12 +21,20 @@ def create_data_base(message):
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
-    if call.data == "empty_db":
-        pass
-        bot.send_message(call.message.chat.id, 'Пустая база данных успешно создана!')
-    elif call.data == "default_db":
-        pass
-        bot.send_message(call.message.chat.id, 'База данных по умолчанию успешно создана!')
+    if call.data in ("empty_db", "default_db"):
+        if check_db(user_id + ".sqlite"):
+            bot.send_message(call.message.chat.id, 'Ошибка! У вас уже создана база данных!\n')
+            return
+        global data_base
+        try:
+            if call.data == "empty_db":
+                data_base = StudentDB(name=user_id + ".sqlite", template=call.data)
+                bot.send_message(call.message.chat.id, 'Пустая база данных успешно создана!')
+            elif call.data == "default_db":
+                data_base = StudentDB(name=user_id + ".sqlite", template=call.data)
+                bot.send_message(call.message.chat.id, 'База данных по умолчанию успешно создана!')
+        except Exception as e:
+            bot.send_message(call.message.chat.id, f'Ошибка при создании базы данных\n{e}')
 
 
 def delete_data_base():
@@ -31,7 +42,9 @@ def delete_data_base():
 
 
 def show_data_base():
-    pass
+    global data_base
+    if data_base is not None:
+        data_base.show_db()
 
 
 def clear_data_base():
@@ -56,6 +69,11 @@ def update_entry():
 
 @bot.message_handler(content_types=['text'])
 def get_text_messages(message):
+    global user_id, data_base
+    if user_id == "":
+        user_id = str(message.from_user.id)
+        if check_db(user_id + ".sqlite"):
+            data_base = StudentDB(user_id + ".sqlite")
     if message.text == "Привет":
         bot.send_message(message.from_user.id, "Привет, чем я могу тебе помочь?")
     elif message.text == "/help":
