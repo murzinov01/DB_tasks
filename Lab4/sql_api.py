@@ -251,7 +251,7 @@ class StudentDB:
     def check_teacher(self, teacher_id) -> int:
         teacher_id = self.db_cursor.execute(
             '''
-            SELECT * FROM Teacher WHERE id = ?
+            SELECT * FROM Teachers WHERE id = ?
             ''', (teacher_id,)
         ).fetchall()
         if len(teacher_id) == 0:
@@ -383,7 +383,7 @@ class StudentDB:
         return student_data
 
     def show_db(self) -> str:
-        result = "DataBase:\n"
+        result = "DataBase:\n\n"
         tables = self.db_cursor.execute(
             '''
             SELECT name FROM sqlite_master WHERE type = "table"

@@ -12,6 +12,8 @@ user_id = ""
 find_who = ""
 delete_by = ""
 delete_who = ""
+update_who = ""
+waiting_update_text = False
 waiting_insert_text = False
 waiting_find_text = False
 waiting_delete_text = False
@@ -27,7 +29,7 @@ def create_keyboard(info: dict):
 @bot.callback_query_handler(func=lambda call: True)
 def callback_handler(call):
     global data_base, action, table_to_clear, waiting_insert_text, insert_to, find_who, waiting_find_text, \
-        waiting_delete_text, delete_by, delete_who
+        waiting_delete_text, delete_by, delete_who, update_who, waiting_update_text
     if call.data in ("empty_db", "default_db"):
         if check_db(user_id + ".sqlite"):
             bot.send_message(call.message.chat.id, 'Ошибка! У вас уже создана база данных!\n')
@@ -107,6 +109,16 @@ def callback_handler(call):
             bot.send_message(call.message.chat.id, "Введи имя!")
         waiting_delete_text = True
         delete_by = call.data
+    elif call.data in ("update_student", "update_teacher"):
+        if call.data == "update_student":
+            bot.send_message(call.message.chat.id, "Пока что я умею менять только имя!). Введи id студента и новое имя "
+                                                   "в формате (id name)")
+        elif call.data == "update_teacher":
+            bot.send_message(call.message.chat.id, "Пока что я умею менять только предмет!). "
+                                                   "Введи название id учителя и название нового предмета в формате"
+                                                   "(id name)")
+        waiting_update_text = True
+        update_who = call.data
 
 
 def create_data_base(message):
@@ -176,13 +188,16 @@ def delete_entry(message):
 
 # студентам имя, учителям предмат
 def update_entry(message):
-    pass
+    keyboard = create_keyboard({"Студента": "update_student",
+                                "Учителя": "update_teacher"})
+    question = "Кого будем обновлять?"
+    bot.send_message(message.from_user.id, text=question, reply_markup=keyboard)
 
 
 @bot.message_handler(content_types=['text'])
 def get_text_messages(message):
     global user_id, data_base, waiting_insert_text, insert_to, waiting_find_text, find_who, waiting_delete_text, \
-        delete_by, delete_who
+        delete_by, delete_who, waiting_update_text, update_who
     if waiting_insert_text:
         waiting_insert_text = False
         try:
@@ -229,6 +244,20 @@ def get_text_messages(message):
         delete_by = ""
         delete_who = ""
         return
+    if waiting_update_text:
+        waiting_update_text = False
+        try:
+            params = message.text.split(" ")
+            if update_who == "update_student":
+                data_base.update_student_name(params)  # UPDATE STUDENT
+            elif update_who == "update_teacher":
+                data_base.update_teacher_subject(params)  # UPDATE TEACHER
+            bot.send_message(message.from_user.id, "Запись успешно обновлена!")
+        except Exception as e:
+            bot.send_message(message.from_user.id, f"Неправильный формат данных или ошибка во время обновления({e}")
+        update_who = ""
+        return
+
     if user_id == "":
         user_id = str(message.from_user.id)
         if check_db(user_id + ".sqlite"):
